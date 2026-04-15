@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>P2P CHAT</title>
+
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+
+<style>
+body {
+    margin:0;
+    background:#0b0b0b;
+    font-family: Arial, sans-serif;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    height:100vh;
+}
+
+/* CONTAINER */
+.box {
+    width:95%;
+    max-width:360px;
+    height:90vh;
+    background:#111;
+    border-radius:16px;
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+    box-shadow:0 0 25px rgba(0,255,0,0.2);
+}
+
+/* HEADER */
+.header {
+    padding:10px;
+    background:#000;
+    color:#0f0;
+    text-align:center;
+    font-weight:bold;
+    font-size:14px;
+    border-bottom:1px solid #0f0;
+}
+
+/* ROOM */
+.room {
+    display:flex;
+    gap:5px;
+    padding:10px;
+}
+
+input {
+    flex:1;
+    padding:10px;
+    border-radius:8px;
+    border:1px solid #0f0;
+    background:#000;
+    color:#0f0;
+    outline:none;
+    text-align:center;
+}
+
+button {
+    padding:10px;
+    border-radius:8px;
+    border:none;
+    background:#0f0;
+    color:#000;
+    font-weight:bold;
+}
+
+/* CHAT */
+#chat {
+    flex:1;
+    padding:10px;
+    overflow-y:auto;
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+    background:#0b0b0b;
+}
+
+/* BUBBLES */
+.msg {
+    max-width:75%;
+    padding:8px 10px;
+    border-radius:12px;
+    font-size:13px;
+    word-wrap:break-word;
+}
+
+/* moi */
+.me {
+    align-self:flex-end;
+    background:#0f0;
+    color:#000;
+    border-bottom-right-radius:4px;
+}
+
+/* autre */
+.other {
+    align-self:flex-start;
+    background:#222;
+    color:#0f0;
+    border-bottom-left-radius:4px;
+}
+
+/* INPUT BAR */
+.inputBar {
+    display:flex;
+    gap:5px;
+    padding:10px;
+    background:#000;
+    border-top:1px solid #0f0;
+}
+
+#msg {
+    flex:1;
+}
+
+/* TALK BUTTON */
+#talk {
+    width:60px;
+    border-radius:10px;
+    background:#ff2d2d;
+    color:#fff;
+    font-weight:bold;
+}
+
+/* STATUS */
+#status {
+    font-size:11px;
+    color:#0f0;
+    text-align:center;
+    padding:5px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="box">
+
+<div class="header">P2P CHAT SECURE</div>
+
+<div class="room">
+    <input id="room" placeholder="CODE ROOM">
+    <button onclick="start()">OK</button>
+</div>
+
+<div id="status">offline</div>
+
+<div id="chat"></div>
+
+<div class="inputBar">
+    <input id="msg" placeholder="message...">
+    <button onclick="send()">SEND</button>
+    <button id="talk">🎤</button>
+</div>
+
+</div>
+
+<script>
+
+// P2P
+let peer, conn, stream, recorder;
+let chunks = [];
+
+// START ROOM
+function start(){
+    const room = document.getElementById("room").value.trim();
+    if(!room) return;
+
+    peer = new Peer(room);
+
+    peer.on("open", ()=>{
+        document.getElementById("status").innerText="connecté: "+room;
+    });
+
+    peer.on("connection", c=>{
+        conn = c;
+        setup();
+    });
+
+    // tentative auto connect
+    setTimeout(()=>{
+        conn = peer.connect(room);
+        setup();
+    },1000);
+}
+
+// CHAT RECEIVE
+function setup(){
+    if(!conn) return;
+
+    conn.on("data", data=>{
+        if(data.type=="msg"){
+            addMsg(data.text,false);
+        }
+
+        if(data.type=="audio"){
+            new Audio(URL.createObjectURL(data.blob)).play();
+        }
+    });
+}
+
+// SEND MESSAGE
+function send(){
+    const input = document.getElementById("msg");
+    const text = input.value.trim();
+    if(!text || !conn) return;
+
+    conn.send({type:"msg", text});
+    addMsg(text,true);
+    input.value="";
+}
+
+// ADD MESSAGE
+function addMsg(text,isMe){
+    const chat = document.getElementById("chat");
+
+    const div = document.createElement("div");
+    div.classList.add("msg");
+    div.classList.add(isMe ? "me" : "other");
+    div.innerText = text;
+
+    chat.appendChild(div);
+    chat.scrollTop = chat.scrollHeight;
+}
+
+// AUDIO PUSH-TO-TALK
+const talk = document.getElementById("talk");
+
+talk.onmousedown = startRec;
+talk.onmouseup = stopRec;
+talk.ontouchstart = e=>{e.preventDefault();startRec();}
+talk.ontouchend = e=>{e.preventDefault();stopRec();}
+
+async function startRec(){
+    if(!conn) return;
+
+    if(!stream){
+        stream = await navigator.mediaDevices.getUserMedia({audio:true});
+    }
+
+    chunks=[];
+    recorder = new MediaRecorder(stream);
+    recorder.ondataavailable = e=>chunks.push(e.data);
+    recorder.start();
+}
+
+function stopRec(){
+    if(!recorder) return;
+
+    recorder.stop();
+
+    recorder.onstop = ()=>{
+        const blob = new Blob(chunks,{type:"audio/webm"});
+        conn.send({type:"audio", blob});
+    }
+}
+
+</script>
+
+</body>
+</html>

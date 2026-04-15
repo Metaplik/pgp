@@ -3,158 +3,149 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>P2P CHAT</title>
+<title>P2P CHAT PRO</title>
 
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 
 <style>
-body {
-    margin:0;
-    background:#0b0b0b;
-    font-family: Arial, sans-serif;
+*{margin:0;padding:0;box-sizing:border-box;}
+
+body{
+    background:#000;
+    font-family:Arial, sans-serif;
     display:flex;
     justify-content:center;
     align-items:center;
     height:100vh;
+    color:#0f0;
 }
 
 /* CONTAINER */
-.box {
-    width:95%;
+.app{
+    width:100%;
     max-width:360px;
-    height:90vh;
-    background:#111;
+    height:95vh;
+    background:#0b0b0b;
     border-radius:16px;
     display:flex;
     flex-direction:column;
+    border:2px solid #0f0;
     overflow:hidden;
-    box-shadow:0 0 25px rgba(0,255,0,0.2);
 }
 
 /* HEADER */
-.header {
+.header{
     padding:10px;
-    background:#000;
-    color:#0f0;
     text-align:center;
-    font-weight:bold;
-    font-size:14px;
     border-bottom:1px solid #0f0;
+    font-weight:bold;
 }
 
-/* ROOM */
-.room {
+/* SECTION */
+.section{
+    padding:10px;
     display:flex;
-    gap:5px;
-    padding:10px;
+    flex-direction:column;
+    gap:6px;
 }
 
-input {
-    flex:1;
-    padding:10px;
+/* INPUT + BUTTON */
+input,button{
+    height:40px;
     border-radius:8px;
     border:1px solid #0f0;
     background:#000;
     color:#0f0;
-    outline:none;
     text-align:center;
 }
 
-button {
-    padding:10px;
-    border-radius:8px;
-    border:none;
-    background:#0f0;
-    color:#000;
-    font-weight:bold;
+button{
+    cursor:pointer;
+}
+
+/* STATUS */
+#status{
+    text-align:center;
+    font-size:12px;
 }
 
 /* CHAT */
-#chat {
+#chat{
     flex:1;
     padding:10px;
     overflow-y:auto;
     display:flex;
     flex-direction:column;
     gap:6px;
-    background:#0b0b0b;
 }
 
-/* BUBBLES */
-.msg {
+/* MESSAGES */
+.msg{
     max-width:75%;
-    padding:8px 10px;
-    border-radius:12px;
+    padding:8px;
+    border-radius:10px;
     font-size:13px;
-    word-wrap:break-word;
+    word-break:break-word;
 }
 
-/* moi */
-.me {
+.me{
     align-self:flex-end;
     background:#0f0;
     color:#000;
-    border-bottom-right-radius:4px;
 }
 
-/* autre */
-.other {
+.other{
     align-self:flex-start;
     background:#222;
-    color:#0f0;
-    border-bottom-left-radius:4px;
 }
 
 /* INPUT BAR */
-.inputBar {
+.bottom{
+    padding:10px;
+    border-top:1px solid #0f0;
     display:flex;
     gap:5px;
-    padding:10px;
-    background:#000;
-    border-top:1px solid #0f0;
 }
 
-#msg {
+#msg{
     flex:1;
 }
 
 /* TALK BUTTON */
-#talk {
-    width:60px;
-    border-radius:10px;
-    background:#ff2d2d;
+#talk{
+    width:55px;
+    background:red;
+    border:none;
+    border-radius:8px;
     color:#fff;
     font-weight:bold;
-}
-
-/* STATUS */
-#status {
-    font-size:11px;
-    color:#0f0;
-    text-align:center;
-    padding:5px;
 }
 </style>
 </head>
 
 <body>
 
-<div class="box">
+<div class="app">
 
-<div class="header">P2P CHAT SECURE</div>
+<div class="header">P2P CHAT</div>
 
-<div class="room">
-    <input id="room" placeholder="CODE ROOM">
-    <button onclick="start()">OK</button>
+<div class="section">
+    <input id="room" placeholder="Code">
+    <button onclick="create()">Créer ID</button>
+
+    <input id="myId" readonly placeholder="Ton ID">
+
+    <input id="friend" placeholder="ID ami">
+    <button onclick="connect()">Connecter</button>
+
+    <div id="status">offline</div>
 </div>
-
-<div id="status">offline</div>
 
 <div id="chat"></div>
 
-<div class="inputBar">
+<div class="bottom">
     <input id="msg" placeholder="message...">
-    <button onclick="send()">SEND</button>
+    <button onclick="sendMsg()">OK</button>
     <button id="talk">🎤</button>
 </div>
 
@@ -162,104 +153,112 @@ button {
 
 <script>
 
-// P2P
-let peer, conn, stream, recorder;
-let chunks = [];
+// PEER
+let peer, connections=[], stream, recorder, chunks=[];
 
-// START ROOM
-function start(){
-    const room = document.getElementById("room").value.trim();
+// CREATE
+function create(){
+    const room=document.getElementById("room").value.trim();
     if(!room) return;
 
-    peer = new Peer(room);
+    const id=room+"_"+Math.floor(Math.random()*10000);
+    peer=new Peer(id);
 
-    peer.on("open", ()=>{
-        document.getElementById("status").innerText="connecté: "+room;
+    peer.on("open",id=>{
+        document.getElementById("myId").value=id;
+        document.getElementById("status").innerText="ID prêt";
     });
 
-    peer.on("connection", c=>{
-        conn = c;
-        setup();
-    });
-
-    // tentative auto connect
-    setTimeout(()=>{
-        conn = peer.connect(room);
-        setup();
-    },1000);
+    peer.on("connection",c=>setup(c));
 }
 
-// CHAT RECEIVE
-function setup(){
-    if(!conn) return;
+// CONNECT
+function connect(){
+    const id=document.getElementById("friend").value.trim();
+    if(!id) return;
 
-    conn.on("data", data=>{
-        if(data.type=="msg"){
+    const conn=peer.connect(id);
+    setup(conn);
+}
+
+// SETUP
+function setup(conn){
+    conn.on("open",()=>{
+        connections.push(conn);
+        document.getElementById("status").innerText="connecté";
+    });
+
+    conn.on("data",data=>{
+        if(data.type==="msg"){
             addMsg(data.text,false);
         }
 
-        if(data.type=="audio"){
+        if(data.type==="audio"){
             new Audio(URL.createObjectURL(data.blob)).play();
         }
     });
 }
 
-// SEND MESSAGE
-function send(){
-    const input = document.getElementById("msg");
-    const text = input.value.trim();
-    if(!text || !conn) return;
+// CHAT
+function sendMsg(){
+    const input=document.getElementById("msg");
+    const text=input.value.trim();
+    if(!text) return;
 
-    conn.send({type:"msg", text});
+    connections.forEach(c=>{
+        if(c.open){
+            c.send({type:"msg",text});
+        }
+    });
+
     addMsg(text,true);
     input.value="";
 }
 
-// ADD MESSAGE
 function addMsg(text,isMe){
-    const chat = document.getElementById("chat");
+    const chat=document.getElementById("chat");
 
-    const div = document.createElement("div");
-    div.classList.add("msg");
-    div.classList.add(isMe ? "me" : "other");
-    div.innerText = text;
+    const div=document.createElement("div");
+    div.className="msg "+(isMe?"me":"other");
+    div.innerText=text;
 
     chat.appendChild(div);
-    chat.scrollTop = chat.scrollHeight;
+    chat.scrollTop=chat.scrollHeight;
 }
 
-// AUDIO PUSH-TO-TALK
-const talk = document.getElementById("talk");
+// AUDIO
+const talk=document.getElementById("talk");
 
-talk.onmousedown = startRec;
-talk.onmouseup = stopRec;
-talk.ontouchstart = e=>{e.preventDefault();startRec();}
-talk.ontouchend = e=>{e.preventDefault();stopRec();}
+talk.onpointerdown=start;
+talk.onpointerup=stop;
 
-async function startRec(){
-    if(!conn) return;
+async function start(){
+    if(connections.length==0) return;
 
     if(!stream){
-        stream = await navigator.mediaDevices.getUserMedia({audio:true});
+        stream=await navigator.mediaDevices.getUserMedia({audio:true});
     }
 
     chunks=[];
-    recorder = new MediaRecorder(stream);
-    recorder.ondataavailable = e=>chunks.push(e.data);
+    recorder=new MediaRecorder(stream);
+    recorder.ondataavailable=e=>chunks.push(e.data);
     recorder.start();
 }
 
-function stopRec(){
+function stop(){
     if(!recorder) return;
 
     recorder.stop();
 
-    recorder.onstop = ()=>{
-        const blob = new Blob(chunks,{type:"audio/webm"});
-        conn.send({type:"audio", blob});
+    recorder.onstop=()=>{
+        const blob=new Blob(chunks,{type:"audio/webm"});
+        connections.forEach(c=>{
+            if(c.open){
+                c.send({type:"audio",blob});
+            }
+        });
     }
 }
-
 </script>
 
 </body>
